@@ -150,6 +150,10 @@ import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import InboxIcon from "@mui/icons-material/MoveToInbox";
 import MailIcon from "@mui/icons-material/Mail";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import profileIcon from "../../assets/uploads/profile.jpg";
+import "../../assets/css/Profile.css";
 
 const drawerWidth = 240;
 
@@ -235,6 +239,45 @@ export default function MiniDrawer() {
   const theme = useTheme();
   const [open, setOpen] = React.useState(false);
 
+  const navigate = useNavigate();
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      const token = localStorage.getItem("authToken");
+
+      if (!token) {
+        navigate("/login");
+        return;
+      }
+
+      try {
+        const response = await fetch("http://127.0.0.1:8000/api/user", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        });
+        console.log(response);
+        if (!response.ok) {
+          throw new Error("Failed to fetch user data");
+        }
+
+        const data = await response.json();
+        setUserData(data);
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, [navigate]);
+
   const handleDrawerOpen = () => {
     setOpen(true);
   };
@@ -243,6 +286,27 @@ export default function MiniDrawer() {
     setOpen(false);
   };
 
+  if (loading) {
+    return (
+      <div className="profile-container">
+        <div className="loading-spinner">
+          <div className="spinner"></div>
+          <p>Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="profile-container">
+        <div className="error-message">
+          <p>{error}</p>
+          <button onClick={() => navigate("/login")}>Back to Login</button>
+        </div>
+      </div>
+    );
+  }
   return (
     <Box sx={{ display: "flex" }}>
       <CssBaseline />
@@ -263,19 +327,64 @@ export default function MiniDrawer() {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div">
-            Mini variant drawer
+            <IconButton onClick={handleDrawerClose}>
+              {theme.direction === "rtl" ? (
+                <ChevronRightIcon />
+              ) : (
+                <ChevronLeftIcon />
+              )}
+            </IconButton>
+            Ankit
           </Typography>
         </Toolbar>
       </AppBar>
       <Drawer variant="permanent" open={open}>
-        <DrawerHeader>
-          <IconButton onClick={handleDrawerClose}>
-            {theme.direction === "rtl" ? (
-              <ChevronRightIcon />
-            ) : (
-              <ChevronLeftIcon />
+        <DrawerHeader
+          sx={{
+            border: "2px solid red",
+            display: "flex",
+            justifyContent: "space-evenly",
+          }}
+        >
+          {/* <div className="profile-content">
+            {userData && (
+              <>
+                <div className="profile-info">
+                  <div className="info-item">
+                    <span className="label">Name:</span>
+                    <span className="value">{userData.name}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="label">Email:</span>
+                    <span className="value">{userData.email}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="label">Mobile:</span>
+                    <span className="value">{userData.number}</span>
+                  </div>
+                </div>
+              </>
             )}
-          </IconButton>
+          </div> */}
+          <div className="profile-card">
+            {userData && (
+              <div className="profile-header">
+                <div className="profile-icon">
+                  {/* You can replace this with an actual <img> or icon */}
+
+                  <img
+                    src={profileIcon}
+                    alt="Profile"
+                    className="profile-icon"
+                  />
+                </div>
+                <div className="profile-details">
+                  <div className="user-name">{userData.name}</div>
+                  {/* <div className="user-email">{userData.email}</div> */}
+                </div>
+              </div>
+            )}
+          </div>
         </DrawerHeader>
         <Divider />
         <List>

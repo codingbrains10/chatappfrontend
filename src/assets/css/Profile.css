@@ -1,3 +1,31 @@
+.profile-card {
+  display: flex;
+  /* align-items: center;
+  background: #f9f9f9;
+  border-radius: 12px;
+  max-width: 400px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1); */
+}
+
+.profile-icon  {
+    height: 50px;
+    width: 50px;
+    border-radius: 50%;
+    background-size: cover;
+    object-fit: cover;
+}
+
+.profile-details .user-name {
+  font-weight: 600;
+  font-size: 18px;
+  color: #333;
+}
+
+.profile-details .user-email {
+  font-size: 14px;
+  color: #666;
+}
+
 .profile-container {
   /* min-height: 100vh; */
   /* display: flex; */
@@ -18,9 +46,11 @@
 
 .profile-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
+  gap: 12px;
+  /* justify-content: space-between;
+  align-items: center; */
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 
 .profile-header h2 {
@@ -28,7 +58,7 @@
   font-size: 1.8rem;
   margin: 0;
 }
-
+/* 
 .logout-button {
   background: #ff4444;
   color: white;
@@ -111,4 +141,4 @@
 
 .error-message button:hover {
   background: #764ba2;
-} 
+}  */
