@@ -17,6 +17,7 @@
     "@mui/material": "^7.0.2",
     "@mui/styled-engine-sc": "^7.0.2",
     "laravel-echo": "^2.0.2",
+    "pusher-js": "^8.4.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.5.0",

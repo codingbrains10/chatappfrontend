@@ -5,7 +5,6 @@ import Box from "@mui/material/Box";
 import MuiDrawer from "@mui/material/Drawer";
 import MuiAppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
-import List from "@mui/material/List";
 import CssBaseline from "@mui/material/CssBaseline";
 import Typography from "@mui/material/Typography";
 import Divider from "@mui/material/Divider";
@@ -14,12 +13,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ListItem from "@mui/material/ListItem";
-
-import ListItemButton from "@mui/material/ListItemButton";
-import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
-import InboxIcon from "@mui/icons-material/MoveToInbox";
-import MailIcon from "@mui/icons-material/Mail";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import profileIcon from "../../assets/uploads/profile.jpg";
@@ -28,12 +22,19 @@ import {
   Avatar,
   Button,
   ListItemAvatar,
+  ListItemButton,
   Stack,
   TextField,
 } from "@mui/material";
 import ImageIcon from "@mui/icons-material/Image";
-import Input from "@mui/material/Input";
-import echo from "../../assets/js/Echo";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import CheckIcon from "@mui/icons-material/Check";
+import EchoInstance from "../../echo";
 
 const drawerWidth = 240;
 
@@ -121,16 +122,15 @@ export default function MiniDrawer() {
   const [open, setOpen] = React.useState(true);
   const [userData, setUserData] = useState(null);
   const [allUsers, setAllUsers] = useState([]);
-  // const [selectedUser, setSelectedUser] = useState(null);
   const [selectedUserProfile, setSelectedUserProfile] = useState(null);
   const [message, setMessage] = useState([]);
-  const [messageData, setMessageData] = useState(null);
   const [getUserChatData, setGetUserChatData] = useState([]);
-  // const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  // console.log("message ankit ----------------------", selectedUser);
+  const [openModal, setOpenModal] = useState(false);
+  const fileInputRef = React.useRef();
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewImage, setPreviewImage] = useState(null);
 
   // fetch single user data
   useEffect(() => {
@@ -241,12 +241,30 @@ export default function MiniDrawer() {
       }
 
       const data = await response.json();
-      setMessageData(data.message);
+      // 👇 After sending, immediately update your chat list!
+      setGetUserChatData((prevMessages) => [
+        ...prevMessages,
+        {
+          id: data.message.id, // id from server response
+          sender_id: sender_id, // your own id
+          receiver_id: receiver_id, // whom you are sending
+          message: message, // message text
+          created_at: new Date().toISOString(), // current timestamp
+        },
+      ]);
+      // setMessageData(data.message);
       console.log("Message sent successfully:", data);
     } catch (error) {
       console.error("Error on sending message: ", error);
     } finally {
       setMessage(""); // Clear input
+    }
+  };
+  // Handle Enter key press to send the message
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && message.trim()) {
+      e.preventDefault(); // Prevent default action (form submit or other actions)
+      sendMessage(); // Call the sendMessage function
     }
   };
 
@@ -280,6 +298,24 @@ export default function MiniDrawer() {
         const data = await response.json();
         if (data.messages && data.messages.length > 0) {
           setGetUserChatData(data.messages);
+
+          // // ✅ Mark those messages as read
+          // await markMessagesAsRead(userData.id, receiverId);
+          // ✅ Only mark as read if user is the receiver of the messages
+          // const hasUnread = data.messages.some(
+          //   (msg) => msg.receiver_id === userData.id && !msg.is_read
+          // );
+
+          // if (hasUnread) {
+          //   await markMessagesAsRead(userData.id, receiverId); // senderId, receiverId
+          // }
+          const hasUnread = data.messages.some(
+            (msg) => msg.receiver_id === userData.id && !msg.is_read
+          );
+
+          if (hasUnread) {
+            await markMessagesAsRead(receiverId, userData.id);
+          }
         } else {
           setGetUserChatData([]); // No messages found
         }
@@ -297,69 +333,77 @@ export default function MiniDrawer() {
     console.log("Sender user ID:", senderId);
   };
 
-  useEffect(() => {
-    const receiver_id = getUserChatData.id;
-    console.log("Receiver ID echo:", getUserChatData);
-    if (receiver_id) {
-      getUserChatData(receiver_id);
+  const markMessagesAsRead = async (senderId, receiverId) => {
+    const token = localStorage.getItem("authToken");
+    if (!token) return;
+
+    try {
+      await fetch("http://127.0.0.1:8000/api/message/read", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sender_id: senderId,
+          receiver_id: receiverId,
+        }),
+      });
+      console.log("Messages marked as read");
+    } catch (error) {
+      console.error("Error marking messages as read:", error);
     }
+  };
 
-    // Listen for new messages on channel 'chat'
-    echo.channel("chat").listen(".message.sent", (e) => {
-      console.log("Received message from WebSocket:", e.message);
+  // const userId = userData?.id;
+  // useEffect(() => {
+  //   if (!userData || !userData.id) return;
 
-      // If the new message is for the current conversation
-      if (
-        (e.message.sender_id === userData.id &&
-          e.message.receiver_id === receiver_id) ||
-        (e.message.receiver_id === userData.id &&
-          e.message.sender_id === receiver_id)
-      ) {
-        setGetUserChatData((prevMessages) => [...prevMessages, e.message]);
-      }
+  //   console.log("Joining channel: ", `chat.${userData.id}`);
+
+  //   const channel = EchoInstance.private(`chat.${userData.id}`);
+
+  //   channel.listen(".message.sent", (e) => {
+  //     console.log("New message received:", e);
+  //     setGetUserChatData((prevMessages) => [...prevMessages, e]);
+  //   });
+
+  //   return () => {
+  //     EchoInstance.leave(`private-chat.${userData.id}`);
+  //     console.log("Left channel: ", `private-chat.${userData.id}`);
+  //   };
+  // }, [userData]);
+
+  useEffect(() => {
+    if (!userData || !userData.id) return;
+
+    const channelName = `chat.${userData.id}`;
+    console.log("Joining channel: ", channelName);
+
+    const channel = EchoInstance.private(channelName);
+
+    // Listen for new incoming messages
+    channel.listen(".message.sent", (e) => {
+      console.log("New message received:", e);
+      setGetUserChatData((prevMessages) => [...prevMessages, e]);
     });
-  });
-  // fetch selected user data by id
-  // const getMessageByUserId = async (receiver_id) => {
-  //   const senderId = userData.id;
-  //   const receiverId = receiver_id;
-  //   console.log("Reciver user ID:", receiver_id);
-  //   console.log("Sender user ID:", userData.id);
-  //   const token = localStorage.getItem("authToken");
 
-  //   if (!token) {
-  //     navigate("/login");
-  //     return;
-  //   }
+    // Listen for message read event
+    channel.listen(".MessageRead", (e) => {
+      console.log("Message read event received:", e);
+      setGetUserChatData((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg.id === e.messageId ? { ...msg, is_read: true } : msg
+        )
+      );
+    });
 
-  //   try {
-  //     const response = await fetch(
-  //       `http://127.0.0.1:8000/api/get-messages?sender_id=${senderId}&receiver_id=${receiverId}`,
-  //       {
-  //         method: "GET",
-  //         headers: {
-  //           Authorization: `Bearer ${token}`,
-  //           Accept: "application/json",
-  //         },
-  //       }
-  //     );
-
-  //     if (!response.ok) {
-  //       throw new Error("Failed to fetch user data");
-  //     }
-
-  //     const data = await response.json();
-  //     console.log(
-  //       "Selected user data message--------------------:",
-  //       data.messages
-  //     );
-  //     setSelectedUser(data.messages);
-  //   } catch (error) {
-  //     setError(error.message);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
+    return () => {
+      EchoInstance.leave(channelName);
+      console.log("Left channel: ", channelName);
+    };
+  }, [userData]);
 
   // handle logout functionality
   const handleLogout = async () => {
@@ -390,6 +434,107 @@ export default function MiniDrawer() {
 
       navigate("/login");
     }
+  };
+
+  // handle message delete functionality
+  const messageDeleteHandler = async (messageId) => {
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/message-delete/${messageId}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to delete message");
+      }
+
+      const data = await response.json();
+      console.log("Message deleted successfully:", data);
+      // Update the chat messages state to remove the deleted message
+      setGetUserChatData((prevMessages) =>
+        prevMessages.filter((message) => message.id !== messageId)
+      );
+    } catch (error) {
+      console.error("Error deleting message: ", error);
+    } finally {
+      setMessage(""); // Clear input if needed
+    }
+  };
+
+  // handle message edit functionality
+  // const messageEditHandler = async (messageId) => {
+  //   const token = localStorage.getItem("authToken");
+  //   if (!token) {
+  //     navigate("/login");
+  //     return;
+  //   }
+  //   console.log("Message ID to edit:", messageId);
+  // };
+
+  // handle profile image update functionality
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setSelectedFile(file);
+      setPreviewImage(URL.createObjectURL(file)); // show preview
+    }
+  };
+
+  const updateProfileImage = async () => {
+    const token = localStorage.getItem("authToken");
+    const userId = userData?.id;
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+
+    if (!selectedFile) return;
+
+    const formData = new FormData();
+    formData.append("profileImage", selectedFile);
+    console.log("Selected file:", selectedFile.name);
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/upload-profile-image/${userId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to update profile image");
+      }
+      const data = await response.json();
+      setUserData((prevState) => {
+        return {
+          ...prevState,
+          profileImage: data.profileImage,
+        };
+      });
+      console.log("Profile image updated successfully:", data);
+    } catch (error) {
+      console.error("Error updating profile image: ", error);
+    } finally {
+      setOpenModal(false);
+    }
+    console.log("Update profile image clicked", selectedFile.name);
   };
 
   const handleDrawerOpen = () => {
@@ -487,7 +632,6 @@ export default function MiniDrawer() {
         {/* admin profile section */}
         <DrawerHeader
           sx={{
-            border: "2px solid red",
             display: "flex",
             justifyContent: "space-evenly",
           }}
@@ -495,11 +639,30 @@ export default function MiniDrawer() {
           <div className="profile-card">
             {userData && (
               <div className="profile-header">
-                <div className="profile-icon">
+                <div
+                  className="profile-icon"
+                  onClick={() => {
+                    setOpenModal(true);
+                  }}
+                >
                   <img
-                    src={profileIcon}
+                    src={
+                      userData?.profileImage
+                        ? `http://127.0.0.1:8000/uploads/${userData.profileImage}`
+                        : profileIcon // fallback if no image
+                    }
                     alt="Profile"
                     className="profile-icon"
+                    style={{
+                      width: "50px",
+                      height: "50px",
+                      borderRadius: "50%",
+                      marginRight: "10px",
+                      backgroundSize: "cover",
+                      backgroundRepeat: "no-repeat",
+                      backgroundPosition: "center",
+                      objectFit: "cover",
+                    }}
                   />
                 </div>
                 <div className="profile-details">
@@ -510,37 +673,72 @@ export default function MiniDrawer() {
             )}
           </div>
         </DrawerHeader>
+
+        {/* open modal for edit or upload profile image */}
+        <Dialog
+          open={openModal}
+          onClose={() => setOpenModal(false)}
+          PaperProps={{
+            sx: { width: "400px", maxWidth: "100%", height: "360px" },
+          }}
+        >
+          <DialogTitle sx={{ textAlign: "center" }}>
+            Update Profile Picture
+          </DialogTitle>
+          <DialogContent>
+            {/* Hidden file input + ref for programmatic click */}
+            <input
+              type="file"
+              accept="image/*"
+              // name="profileImage"
+              hidden
+              id="upload-profile"
+              onChange={handleFileChange}
+              ref={fileInputRef}
+            />
+
+            {/* Circle Box as clickable image */}
+            <Box
+              sx={{
+                width: "200px",
+                height: "200px",
+                border: "1px solid #ccc",
+                borderRadius: "50%",
+                overflow: "hidden",
+                margin: "0 auto 20px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#f5f5f5",
+              }}
+              onClick={() => fileInputRef.current.click()}
+            >
+              {previewImage ? (
+                <img
+                  src={previewImage}
+                  alt="Preview"
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              ) : (
+                <Typography variant="caption" color="textSecondary">
+                  Click to upload
+                </Typography>
+              )}
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpenModal(false)}>Cancel</Button>
+            <Button onClick={updateProfileImage} disabled={!selectedFile}>
+              Upload
+            </Button>
+          </DialogActions>
+        </Dialog>
         <Divider />
 
         {/* Registered user list */}
-        {/* {allUsers && allUsers.length > 0 && (
-          <Box>
-            {allUsers.map((user) => (
-              <ListItem
-                button="true"
-                key={user.id}
-                onClick={() => {
-                  getUserChat(user.id);
-                }}
-              >
-                <ListItemAvatar>
-                  <Avatar src={user.profile_image || undefined} alt={user.name}>
-                    {!user.profile_image && <ImageIcon />}
-                  </Avatar>
-                </ListItemAvatar>
-                <ListItemText
-                  primary={user.name}
-                  secondary={`Joined: ${new Date(
-                    user.created_at
-                  ).toLocaleDateString()}`}
-                  onClick={() => sideLabelHandler(user)}
-                />
-              </ListItem>
-            ))}
-          </Box>
-        )} */}
         {allUsers && allUsers.length > 0 && (
-          <Box>
+          <Box sx={{ padding: "5px" }}>
             {allUsers.map((user) => (
               <ListItem
                 key={user.id}
@@ -550,30 +748,41 @@ export default function MiniDrawer() {
                   sideLabelHandler(user); // update selected user name in sidebar
                 }}
                 sx={{
-                  border: "1px solid #ccc",
+                  border: "1px solid red",
                   borderRadius: 2,
                   mb: 1,
                   cursor: "pointer",
+                  paddingTop: "0px",
+                  paddingBottom: "0px",
+                  paddingLeft: "6px",
+                  marginLeft: handleDrawerOpen ? "-2px" : 0,
                 }}
               >
-                <ListItemAvatar>
-                  <Avatar src={user.profile_image || undefined} alt={user.name}>
-                    {!user.profile_image && <ImageIcon />}
-                  </Avatar>
-                </ListItemAvatar>
+                <ListItemButton>
+                  <ListItemAvatar>
+                    <Avatar
+                      src={
+                        user.profileImage
+                          ? `http://127.0.0.1:8000/uploads/${user.profileImage}`
+                          : undefined
+                      }
+                      alt={user.name}
+                    >
+                      {!user.profileImage && <ImageIcon />}
+                    </Avatar>
+                  </ListItemAvatar>
 
-                <ListItemText
-                  primary={user.name}
-                  secondary={`Joined: ${new Date(
-                    user.created_at
-                  ).toLocaleDateString()}`}
-                />
+                  <ListItemText
+                    primary={user.name}
+                    secondary={`Joined: ${new Date(
+                      user.created_at
+                    ).toLocaleDateString()}`}
+                  />
+                </ListItemButton>
               </ListItem>
             ))}
           </Box>
         )}
-
-        <Divider />
       </Drawer>
 
       {/* chat message container */}
@@ -590,173 +799,98 @@ export default function MiniDrawer() {
       >
         {/* chat message area */}
         <Box>
-          {/* <Typography variant="h6" mb={2}>
-            Chat with John
-          </Typography> */}
-          {/* Paste the chat bubble code here */}
-          {/* <Box sx={{ padding: 2 }}>
-            {Array.isArray(getUserChatData) && getUserChatData.length > 0 ? (
-              getUserChatData.map((item, index) => {
-                const isSender = item.sender_id === userData.id;
-                return (
-                  <Box
-                    key={index}
-                    sx={{
-                      display: "flex",
-                      justifyContent: isSender ? "flex-end" : "flex-start",
-                      mb: 1,
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        maxWidth: "60%",
-                        padding: "10px 15px",
-                        borderRadius: "16px",
-                        backgroundColor: isSender ? "#DCF8C6" : "#ffffff",
-                        color: "#000",
-                        boxShadow: "0 1px 2px rgba(0, 0, 0, 0.15)",
-                        borderTopRightRadius: isSender ? 0 : "16px",
-                        borderTopLeftRadius: isSender ? "16px" : 0,
-                      }}
-                    >
-                      <Typography variant="body2">{item.message}</Typography>
-                      <Typography
-                        variant="caption"
+          <Box sx={{ padding: 2, marginTop: "-25px", marginBottom: "40px" }}>
+            {loading ? (
+              <Typography variant="body2" color="textSecondary" align="center">
+                Loading messages...
+              </Typography>
+            ) : (
+              <>
+                {getUserChatData.length > 0 ? (
+                  getUserChatData.map((item, index) => {
+                    const isSender = item.sender_id === userData.id;
+                    return (
+                      <Box
+                        key={index}
                         sx={{
-                          display: "block",
-                          textAlign: "right",
-                          marginTop: "4px",
-                          color: "#888",
+                          display: "flex",
+                          justifyContent: isSender ? "flex-end" : "flex-start",
+                          mb: 1,
                         }}
                       >
-                        {item.created_at &&
-                          new Date(item.created_at).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                      </Typography>
-                    </Box>
-                  </Box>
-                );
-              })
-            ) : (
-              <Typography
-                variant="body2"
-                sx={{ color: "#999", textAlign: "center" }}
-              >
-                No messages found for this user.
-              </Typography>
-            )}
-          </Box> */}
-          {/* <Box sx={{ padding: 2 }}>
-            {Array.isArray(getUserChatData) && getUserChatData.length > 0 ? (
-              getUserChatData.map((item, index) => {
-                const isSender = item.sender_id === userData.id;
-                return (
-                  <Box
-                    key={index}
-                    sx={{
-                      display: "flex",
-                      justifyContent: isSender ? "flex-end" : "flex-start",
-                      mb: 1,
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        maxWidth: "60%",
-                        padding: "10px 15px",
-                        borderRadius: "16px",
-                        backgroundColor: isSender ? "#DCF8C6" : "#ffffff",
-                        color: "#000",
-                        boxShadow: "0 1px 2px rgba(0, 0, 0, 0.15)",
-                        borderTopRightRadius: isSender ? 0 : "16px",
-                        borderTopLeftRadius: isSender ? "16px" : 0,
-                      }}
-                    >
-                      <Typography variant="body2">{item.message}</Typography>
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          display: "block",
-                          textAlign: "right",
-                          marginTop: "4px",
-                          color: "#888",
-                        }}
-                      >
-                        {item.created_at &&
-                          new Date(item.created_at).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                      </Typography>
-                    </Box>
-                  </Box>
-                );
-              })
-            ) : (
-              <Typography
-                variant="body2"
-                sx={{
-                  color: "#999",
-                  textAlign: "center",
-                  fontStyle: "italic",
-                }}
-              >
-                No messages found for this user.
-              </Typography>
-            )}
-          </Box> */}
-          <Box>
-            <Box sx={{ padding: 2, marginTop: "-25px", marginBottom: "40px" }}>
-              {/* Show messages or "No messages found" */}
-              {loading ? (
-                <Typography
-                  variant="body2"
-                  color="textSecondary"
-                  align="center"
-                >
-                  Loading messages...
-                </Typography>
-              ) : (
-                <>
-                  {getUserChatData.length > 0 ? (
-                    getUserChatData.map((item, index) => {
-                      const isSender = item.sender_id === userData.id;
-                      return (
                         <Box
-                          key={index}
                           sx={{
-                            display: "flex",
-                            justifyContent: isSender
-                              ? "flex-end"
-                              : "flex-start",
-                            mb: 1,
+                            maxWidth: "60%",
+                            padding: "10px 15px",
+                            borderRadius: "16px",
+                            backgroundColor: isSender ? "#DCF8C6" : "#ffffff",
+                            color: "#000",
+                            boxShadow: "0 1px 2px rgba(0, 0, 0, 0.15)",
+                            borderTopRightRadius: isSender ? 0 : "16px",
+                            borderTopLeftRadius: isSender ? "16px" : 0,
+                            wordBreak: "break-word",
+                            whiteSpace: "pre-wrap",
+                            lineHeight: "1.5",
+                            position: "relative",
+                            "&:hover .actions": {
+                              opacity: 1,
+                            },
                           }}
                         >
-                          <Box
+                          <Typography variant="body2">
+                            {item.message}
+                          </Typography>
+
+                          {/* <Typography
+                            variant="caption"
                             sx={{
-                              maxWidth: "60%",
-                              padding: "10px 15px",
-                              borderRadius: "16px",
-                              backgroundColor: isSender ? "#DCF8C6" : "#ffffff",
-                              color: "#000",
-                              boxShadow: "0 1px 2px rgba(0, 0, 0, 0.15)",
-                              borderTopRightRadius: isSender ? 0 : "16px",
-                              borderTopLeftRadius: isSender ? "16px" : 0,
+                              display: "block",
+                              textAlign: "right",
+                              marginTop: "4px",
+                              color: "#888",
                             }}
                           >
-                            <Typography variant="body2">
-                              {item.message}
-                            </Typography>
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                display: "block",
-                                textAlign: "right",
-                                marginTop: "4px",
-                                color: "#888",
-                              }}
-                            >
+                            {item.created_at &&
+                              new Date(item.created_at).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                          </Typography> */}
+                          {/* Timestamp and Read Tick */}
+                          {/* <Typography
+                            variant="caption"
+                            sx={{
+                              display: "flex",
+                              justifyContent: "flex-end",
+                              alignItems: "center",
+                              gap: "4px",
+                              marginTop: "4px",
+                              color: "#888",
+                            }}
+                          >
+                            {item.created_at &&
+                              new Date(item.created_at).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            {isSender && item.is_read && (
+                              <CheckIcon
+                                fontSize="inherit"
+                                sx={{ color: "#4caf50" }}
+                              />
+                            )}
+                          </Typography> */}
+                          <Box
+                            sx={{
+                              display: "flex",
+                              justifyContent: "flex-end",
+                              alignItems: "center",
+                              gap: "4px",
+                              marginTop: "4px",
+                              color: "#888",
+                            }}
+                          >
+                            <Typography variant="caption">
                               {item.created_at &&
                                 new Date(item.created_at).toLocaleTimeString(
                                   [],
@@ -766,25 +900,104 @@ export default function MiniDrawer() {
                                   }
                                 )}
                             </Typography>
+
+                            {/* {isSender && item.is_read && (
+                              <CheckIcon
+                                fontSize="small"
+                                sx={{ color: "#4caf50" }}
+                              />
+                            )} */}
+                            {isSender && (
+                              <>
+                                {item.is_read ? (
+                                  <span
+                                    style={{
+                                      color: "#4caf50",
+                                      marginLeft: "4px",
+                                    }}
+                                  >
+                                    ✓✓
+                                  </span> // Read
+                                ) : (
+                                  <span
+                                    style={{ color: "#888", marginLeft: "4px" }}
+                                  >
+                                    ✓
+                                  </span> // Sent only
+                                )}
+                              </>
+                            )}
                           </Box>
+
+                          {/* Only show actions if this is the sender's message */}
+                          {/* {isSender && (
+                            <Box
+                              className="actions"
+                              sx={{
+                                position: "absolute",
+                                top: "-40px",
+                                right: 0,
+                                backgroundColor: "#333",
+                                borderRadius: "8px",
+                                padding: "2px",
+                                display: "flex",
+                                gap: "4px",
+                                opacity: 0,
+                                transition: "opacity 0.2s ease-in-out",
+                              }}
+                            >
+                              <IconButton
+                                size="small"
+                                sx={{ color: "white" }}
+                                onClick={() => messageDeleteHandler(item.id)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Box>
+                          )} */}
+                          {isSender && (
+                            <Box
+                              className="actions"
+                              sx={{
+                                position: "absolute",
+                                top: "-40px",
+                                right: 0,
+                                backgroundColor: "#333",
+                                borderRadius: "8px",
+                                padding: "2px",
+                                display: "flex",
+                                gap: "4px",
+                                opacity: 0,
+                                transition: "opacity 0.2s ease-in-out",
+                              }}
+                            >
+                              <IconButton
+                                size="small"
+                                sx={{ color: "white" }}
+                                onClick={() => messageDeleteHandler(item.id)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Box>
+                          )}
                         </Box>
-                      );
-                    })
-                  ) : (
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: "#999",
-                        textAlign: "center",
-                        fontStyle: "italic",
-                      }}
-                    >
-                      No messages found for this user.
-                    </Typography>
-                  )}
-                </>
-              )}
-            </Box>
+                      </Box>
+                    );
+                  })
+                ) : (
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "#999",
+                      textAlign: "center",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    No messages found for this user.
+                  </Typography>
+                )}
+              </>
+            )}
           </Box>
         </Box>
 
@@ -811,6 +1024,7 @@ export default function MiniDrawer() {
             placeholder="Type your message..."
             value={message ?? ""}
             onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
             InputProps={{
               sx: {
                 "& .MuiInputBase-input": {
