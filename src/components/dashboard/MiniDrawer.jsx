@@ -131,6 +131,7 @@ export default function MiniDrawer() {
   const fileInputRef = React.useRef();
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
+  const [onlineUsers, setOnlineUsers] = useState([]);
 
   // fetch single user data
   useEffect(() => {
@@ -299,16 +300,6 @@ export default function MiniDrawer() {
         if (data.messages && data.messages.length > 0) {
           setGetUserChatData(data.messages);
 
-          // // ✅ Mark those messages as read
-          // await markMessagesAsRead(userData.id, receiverId);
-          // ✅ Only mark as read if user is the receiver of the messages
-          // const hasUnread = data.messages.some(
-          //   (msg) => msg.receiver_id === userData.id && !msg.is_read
-          // );
-
-          // if (hasUnread) {
-          //   await markMessagesAsRead(userData.id, receiverId); // senderId, receiverId
-          // }
           const hasUnread = data.messages.some(
             (msg) => msg.receiver_id === userData.id && !msg.is_read
           );
@@ -356,24 +347,27 @@ export default function MiniDrawer() {
     }
   };
 
-  // const userId = userData?.id;
-  // useEffect(() => {
-  //   if (!userData || !userData.id) return;
+  useEffect(() => {
+    if (!userData?.id) return;
 
-  //   console.log("Joining channel: ", `chat.${userData.id}`);
+    EchoInstance.join("presence-chat")
+      .here((users) => {
+        console.log("Currently online users:", users);
+        setOnlineUsers(users.map((u) => u.id));
+      })
+      .joining((user) => {
+        console.log(`${user.name} joined`);
+        setOnlineUsers((prev) => [...prev, user.id]);
+      })
+      .leaving((user) => {
+        console.log(`${user.name} left`);
+        setOnlineUsers((prev) => prev.filter((id) => id !== user.id));
+      });
 
-  //   const channel = EchoInstance.private(`chat.${userData.id}`);
-
-  //   channel.listen(".message.sent", (e) => {
-  //     console.log("New message received:", e);
-  //     setGetUserChatData((prevMessages) => [...prevMessages, e]);
-  //   });
-
-  //   return () => {
-  //     EchoInstance.leave(`private-chat.${userData.id}`);
-  //     console.log("Left channel: ", `private-chat.${userData.id}`);
-  //   };
-  // }, [userData]);
+    return () => {
+      EchoInstance.leave("presence-chat");
+    };
+  }, [userData]);
 
   useEffect(() => {
     if (!userData || !userData.id) return;
@@ -614,9 +608,28 @@ export default function MiniDrawer() {
                 }
                 sx={{ width: 32, height: 32, marginRight: 1 }}
               />
-              <Typography variant="body1" noWrap className="user-name">
-                {selectedUserProfile?.name || "John Doe"}
-              </Typography>
+
+              <Box sx={{ display: "flex", flexDirection: "column" }}>
+                <Typography variant="body1" noWrap className="user-name">
+                  {selectedUserProfile?.name || "John Doe"}
+                </Typography>
+
+                {selectedUserProfile?.name && (
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: onlineUsers.includes(selectedUserProfile?.id)
+                        ? "white"
+                        : "white",
+                    }}
+                  >
+                    ●{""}
+                    {onlineUsers.includes(selectedUserProfile?.id)
+                      ? "Online"
+                      : "Offline"}
+                  </Typography>
+                )}
+              </Box>
             </Box>
 
             {/* Logout button - right */}
@@ -840,46 +853,7 @@ export default function MiniDrawer() {
                           <Typography variant="body2">
                             {item.message}
                           </Typography>
-
-                          {/* <Typography
-                            variant="caption"
-                            sx={{
-                              display: "block",
-                              textAlign: "right",
-                              marginTop: "4px",
-                              color: "#888",
-                            }}
-                          >
-                            {item.created_at &&
-                              new Date(item.created_at).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                          </Typography> */}
-                          {/* Timestamp and Read Tick */}
-                          {/* <Typography
-                            variant="caption"
-                            sx={{
-                              display: "flex",
-                              justifyContent: "flex-end",
-                              alignItems: "center",
-                              gap: "4px",
-                              marginTop: "4px",
-                              color: "#888",
-                            }}
-                          >
-                            {item.created_at &&
-                              new Date(item.created_at).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            {isSender && item.is_read && (
-                              <CheckIcon
-                                fontSize="inherit"
-                                sx={{ color: "#4caf50" }}
-                              />
-                            )}
-                          </Typography> */}
+                          {/* Message timestamp and read status */}
                           <Box
                             sx={{
                               display: "flex",
@@ -900,13 +874,6 @@ export default function MiniDrawer() {
                                   }
                                 )}
                             </Typography>
-
-                            {/* {isSender && item.is_read && (
-                              <CheckIcon
-                                fontSize="small"
-                                sx={{ color: "#4caf50" }}
-                              />
-                            )} */}
                             {isSender && (
                               <>
                                 {item.is_read ? (
@@ -930,31 +897,6 @@ export default function MiniDrawer() {
                           </Box>
 
                           {/* Only show actions if this is the sender's message */}
-                          {/* {isSender && (
-                            <Box
-                              className="actions"
-                              sx={{
-                                position: "absolute",
-                                top: "-40px",
-                                right: 0,
-                                backgroundColor: "#333",
-                                borderRadius: "8px",
-                                padding: "2px",
-                                display: "flex",
-                                gap: "4px",
-                                opacity: 0,
-                                transition: "opacity 0.2s ease-in-out",
-                              }}
-                            >
-                              <IconButton
-                                size="small"
-                                sx={{ color: "white" }}
-                                onClick={() => messageDeleteHandler(item.id)}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Box>
-                          )} */}
                           {isSender && (
                             <Box
                               className="actions"
