@@ -27,14 +27,13 @@ import {
   TextField,
 } from "@mui/material";
 import ImageIcon from "@mui/icons-material/Image";
-import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
-import CheckIcon from "@mui/icons-material/Check";
 import EchoInstance from "../../echo";
+import ThreeDotsDropdown from "./ThreeDotsDropdown";
 
 const drawerWidth = 240;
 
@@ -156,6 +155,7 @@ export default function MiniDrawer() {
           throw new Error("Failed to fetch user data");
         }
         const data = await response.json();
+        localStorage.setItem("userData", JSON.stringify(data.id));
         setUserData(data);
       } catch (error) {
         setError(error.message);
@@ -399,37 +399,6 @@ export default function MiniDrawer() {
     };
   }, [userData]);
 
-  // handle logout functionality
-  const handleLogout = async () => {
-    const token = localStorage.getItem("authToken");
-
-    try {
-      const response = await fetch("http://127.0.0.1:8000/api/logout", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Logout failed");
-      }
-
-      // Clear the auth token
-      localStorage.removeItem("authToken");
-
-      // Redirect to login page
-      navigate("/login");
-    } catch (error) {
-      console.error("Logout error:", error);
-      // Even if the API call fails, we still want to clear the token and redirect
-      localStorage.removeItem("authToken");
-
-      navigate("/login");
-    }
-  };
-
   // handle message delete functionality
   const messageDeleteHandler = async (messageId) => {
     const token = localStorage.getItem("authToken");
@@ -466,16 +435,6 @@ export default function MiniDrawer() {
       setMessage(""); // Clear input if needed
     }
   };
-
-  // handle message edit functionality
-  // const messageEditHandler = async (messageId) => {
-  //   const token = localStorage.getItem("authToken");
-  //   if (!token) {
-  //     navigate("/login");
-  //     return;
-  //   }
-  //   console.log("Message ID to edit:", messageId);
-  // };
 
   // handle profile image update functionality
   const handleFileChange = (event) => {
@@ -564,7 +523,7 @@ export default function MiniDrawer() {
   return (
     <Box sx={{ display: "flex" }}>
       <CssBaseline />
-      <AppBar position="fixed" open={open}>
+      <AppBar position="fixed" open={open} sx={{ backgroundColor: "#5d97e5" }}>
         <Toolbar>
           <IconButton
             color="inherit"
@@ -632,10 +591,23 @@ export default function MiniDrawer() {
               </Box>
             </Box>
 
-            {/* Logout button - right */}
-            <Button variant="contained" color="primary" onClick={handleLogout}>
-              Logout
-            </Button>
+            {/* Three Dot Icon - right */}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                marginLeft: "auto",
+                marginRight: 2,
+                color: "white",
+                "&:hover": {
+                  color: "#f5f5f5",
+                },
+                cursor: "pointer",
+              }}
+            >
+              <ThreeDotsDropdown selectedUser={selectedUserProfile} />
+            </Box>
           </Box>
         </Toolbar>
       </AppBar>

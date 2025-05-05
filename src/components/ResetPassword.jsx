@@ -11,29 +11,33 @@ const ResetPassword = () => {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
+
+  console.log("newPassword", newPassword);
+  console.log("confirmPassword", confirmPassword);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setSuccess(false);
 
     if (!newPassword || !confirmPassword) {
-      setError('Both fields are required');
+      setError("Both fields are required");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match');
+      setError("Passwords do not match");
       return;
     }
 
     try {
       setLoading(true);
-      const email = localStorage.getItem('resetEmail'); // Get email from localStorage
-      const response = await fetch('http://127.0.0.1:8000/api/reset-password', {
-        method: 'POST',
+      const email = localStorage.getItem("resetEmail"); // Get email from localStorage
+      const response = await fetch("http://127.0.0.1:8000/api/reset-password", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
+          "Content-Type": "application/json",
+          Accept: "application/json",
         },
         body: JSON.stringify({ email, password: newPassword }),
       });
@@ -41,16 +45,19 @@ const ResetPassword = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to reset password');
+        throw new Error(data.message || "Failed to reset password");
       }
 
       setSuccess(true);
-      // Redirect to login page after successful password reset
+      setNewPassword("");
+      setConfirmPassword("");
       setTimeout(() => {
-        navigate('/login');
+        navigate("/login");
       }, 2000);
     } catch (err) {
-      setError(err.message || 'Failed to reset password. Please try again later.');
+      setError(
+        err.message || "Failed to reset password. Please try again later."
+      );
     } finally {
       setLoading(false);
     }
